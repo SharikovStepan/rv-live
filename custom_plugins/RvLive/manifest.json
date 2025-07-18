@@ -1,0 +1,12 @@
+{
+	"name": "RV LIVE",
+	"domain": "Result Viewer",
+	"author": "BeeHolder",
+	"author_uri": "https://t.me/stepan_r1",
+	"description": "Watch your race statistic with https://rh-results-viewer.vercel.app/",
+	"info_uri": "https://github.com/SharikovStepan/RH-Results-Viewer",
+	"license": "MIT",
+	"license_uri": "https://github.com/RotorHazard/RotorHazard/blob/main/LICENSE",
+	"version": "1.0.0",
+	"required_rhapi_version": "1.0"
+}
