@@ -2,9 +2,31 @@ import logging
 import uuid
 import base64
 import time
+import json
+
+import subprocess
+import sys
+import os
+
+def install_requirements():
+    try:
+        import requests
+        import gevent
+    except ImportError:
+        # путь к requirements.txt рядом с plugin.py
+        req_file = os.path.join(os.path.dirname(__file__), "requirements.txt")
+        if os.path.isfile(req_file):
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", req_file])
+        else:
+            print("[RvLive] No requirements.txt found")
+
+install_requirements()
+
+
+
 import requests
 import gevent
-import json
+
 from eventmanager import Evt
 from RHUI import UIField, UIFieldType, UIFieldSelectOption
 
@@ -13,7 +35,7 @@ class RvLive():
         self.logger = logging.getLogger(__name__)
         self._rhapi = rhapi
         self.panel_name = "rv_live"
-        self._skip_next_update = False
+        self._isFinished = False
         
         # Регистрируем секцию для сохраненных данных
         self._rhapi.config.register_section('RvLive')
@@ -101,7 +123,8 @@ class RvLive():
         elif self.button_state == "clear":
             self.prompt_clear_confirmation()
         elif self.button_state == "confirm":
-            self.clear_keys()
+            self._isFinished = True
+            gevent.spawn(self.send_data_to_api)
 
     def generate_keys(self):
         self.logger.info("Generating new keys")
@@ -129,16 +152,16 @@ class RvLive():
         self.logger.debug(f"Saved keys: uuid={self.keys['uuid']}, key={self.keys['key']}")
 
     def on_database_reset(self, args):
-        self.logger.info("DATABASE_RESET triggered — skipping next results update and finish event")
-        self._skip_next_update = True
-        self.clear_keys();
+        self.logger.info("DATABASE_RESET triggered — isFinished = true")
+        self._isFinished = True
+      #   self.clear_keys();
 
     def on_results_update(self, args):
         """Обработчик событий, которые могут обновлять результаты"""
-        if self._skip_next_update:
-           self.logger.info("Skipping results update due to recent DATABASE_RESET")
-           self._skip_next_update = False
-           return  # Пропустить это обновление
+      #   
+      #      self.logger.info("Skipping results update due to recent DATABASE_RESET")
+      #      self._isFinished = False
+      #      return  # Пропустить это обновление
         
         if self.keys["uuid"] != "not_generated":
             self.logger.info("Results potentially updated, sending data to API")
@@ -147,23 +170,29 @@ class RvLive():
     def send_data_to_api(self):
         """Асинхронная отправка данных на API Endpoint"""
         try:
-            # Получаем текущие результаты события
-            event_results = self._rhapi.eventresults.results
-            
-            # Получаем название события
-            event_name = self._rhapi.db.option("eventName") or "Unnamed Event"
-            
-            # Формируем данные для отправки в правильной структуре
-            payload = {
-                "uuid": self.keys["uuid"],  # Используем key1 как event_uuid
-                "key": self.keys["key"],
-                "data": {
-                    "lastUpdate":int(time.time() * 1000),
-                    "eventName": event_name,
-                    "results": event_results
+            if self._isFinished != True:
+               # Получаем текущие результаты события
+                event_results = self._rhapi.eventresults.results   
+                # Получаем название события
+                event_name = self._rhapi.db.option("eventName") or "No titled"
+                # Формируем данные для отправки в правильной структуре
+                payload = {
+                    "uuid": self.keys["uuid"],
+                    "key": self.keys["key"],
+                    "isFinished": False,
+                    "data": {
+                        "lastUpdate":int(time.time() * 1000),
+                        "eventName": event_name,
+                        "results": event_results
+                    }
                 }
-            }
-            
+            elif self._isFinished:
+               payload = {
+						"uuid": self.keys["uuid"],
+                  "key": self.keys["key"],
+                  "isFinished": True,
+					}
+               
             self.logger.info(f"Sending data to API")
             self.logger.debug(f"Payload: {json.dumps(payload, indent=2)}")
             
@@ -174,12 +203,14 @@ class RvLive():
                 headers={'Content-Type': 'application/json'},
                 timeout=5
             )
-            
+            if self._isFinished:
+               self.clear_keys();
             # Подробное логирование ответа
             self.logger.debug(f"API response: status={response.status_code}, text={response.text}")
             
             # Обрабатываем ответ и показываем уведомление пользователю
             self.UI_Message(self._rhapi, response.text)
+            
                 
         except requests.exceptions.RequestException as e:
             error_msg = f"API connection failed: {str(e)}"
@@ -278,6 +309,7 @@ class RvLive():
         # Очищаем persistent configuration
         self._rhapi.config.set('RvLive', 'uuid', "")
         self._rhapi.config.set('RvLive', 'key', "")
+        self._isFinished = False
         
         # Обновляем состояние кнопки
         self.button_state = "generate"
