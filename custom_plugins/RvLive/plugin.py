@@ -4,26 +4,6 @@ import base64
 import time
 import json
 
-import subprocess
-import sys
-import os
-
-def install_requirements():
-    try:
-        import requests
-        import gevent
-    except ImportError:
-        # путь к requirements.txt рядом с plugin.py
-        req_file = os.path.join(os.path.dirname(__file__), "requirements.txt")
-        if os.path.isfile(req_file):
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", req_file])
-        else:
-            print("[RvLive] No requirements.txt found")
-
-install_requirements()
-
-
-
 import requests
 import gevent
 
