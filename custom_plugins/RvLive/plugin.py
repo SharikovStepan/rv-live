@@ -15,7 +15,7 @@ class RvLive():
         self.logger = logging.getLogger(__name__)
         self._rhapi = rhapi
         self.panel_name = "rv_live"
-        self._isFinished = False
+      #   self._isFinished = False
         
         # Регистрируем секцию для сохраненных данных
         self._rhapi.config.register_section('RvLive')
@@ -23,7 +23,7 @@ class RvLive():
         # Загружаем ключи из persistent configuration
         self.keys = {
             "uuid": self._rhapi.config.get('RvLive', 'uuid') or "not_generated",
-            "key": self._rhapi.config.get('RvLive', 'key') or "not_generated"
+            "key": self._rhapi.config.get('RvLive', 'key') or "not_generated",
         }
         
         # Определяем начальное состояние кнопки
@@ -103,7 +103,7 @@ class RvLive():
         elif self.button_state == "clear":
             self.prompt_clear_confirmation()
         elif self.button_state == "confirm":
-            self._isFinished = True
+            self._rhapi.config.set('RvLive', 'isFinished', True)
             gevent.spawn(self.send_data_to_api)
 
     def generate_keys(self):
@@ -115,6 +115,7 @@ class RvLive():
         # Сохранение в persistent configuration
         self._rhapi.config.set('RvLive', 'uuid', self.keys["uuid"])
         self._rhapi.config.set('RvLive', 'key', self.keys["key"])
+        self._rhapi.config.set('RvLive', 'isFinished', False)
         
         # Асинхронная отправка ключей на API
         gevent.spawn(self.send_data_to_api)
@@ -133,7 +134,7 @@ class RvLive():
 
     def on_database_reset(self, args):
         self.logger.info("DATABASE_RESET triggered — isFinished = true")
-        self._isFinished = True
+        self._rhapi.config.set('RvLive', 'isFinished', True)
       #   self.clear_keys();
 
     def on_results_update(self, args):
@@ -150,7 +151,7 @@ class RvLive():
     def send_data_to_api(self):
         """Асинхронная отправка данных на API Endpoint"""
         try:
-            if self._isFinished != True:
+            if self._rhapi.config.get('RvLive', 'isFinished') != True:
                # Получаем текущие результаты события
                 event_results = self._rhapi.eventresults.results   
                 # Получаем название события
@@ -166,7 +167,7 @@ class RvLive():
                         "results": event_results
                     }
                 }
-            elif self._isFinished:
+            elif self._rhapi.config.get('RvLive', 'isFinished')==True:
                payload = {
 						"uuid": self.keys["uuid"],
                   "key": self.keys["key"],
@@ -183,7 +184,7 @@ class RvLive():
                 headers={'Content-Type': 'application/json'},
                 timeout=5
             )
-            if self._isFinished:
+            if self._rhapi.config.get('RvLive', 'isFinished')==True:
                self.clear_keys();
             # Подробное логирование ответа
             self.logger.debug(f"API response: status={response.status_code}, text={response.text}")
@@ -225,7 +226,8 @@ class RvLive():
                             "is FINISHED!<br><br>"
                             "Please, generate NEW"
                         )
-                        self.clear_keys();
+                        self._rhapi.config.set('RvLive', 'isFinished', True)
+                        gevent.spawn(self.send_data_to_api)
                         return
                 
                 # Затем успешные ответы
@@ -289,7 +291,7 @@ class RvLive():
         # Очищаем persistent configuration
         self._rhapi.config.set('RvLive', 'uuid', "")
         self._rhapi.config.set('RvLive', 'key', "")
-        self._isFinished = False
+        self._rhapi.config.set('RvLive', 'isFinished', False)
         
         # Обновляем состояние кнопки
         self.button_state = "generate"
