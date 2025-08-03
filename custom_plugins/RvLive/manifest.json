@@ -8,6 +8,5 @@
 	"license": "MIT",
 	"license_uri": "https://github.com/RotorHazard/RotorHazard/blob/main/LICENSE",
 	"version": "1.0.0",
-	"dependencies" : ["requests","gevent"],
 	"required_rhapi_version": "1.0"
 }

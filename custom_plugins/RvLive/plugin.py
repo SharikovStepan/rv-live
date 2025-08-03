@@ -41,7 +41,7 @@ class RvLive():
 
         self.API_ENDPOINT = "https://rh-results-viewer.vercel.app/api/upload"
         
-        self.logger.debug(f"Loaded keys: uuid={self.keys['uuid']}, key2={self.keys['key']}")
+      #   self.logger.debug(f"Loaded keys: uuid={self.keys['uuid']}, key2={self.keys['key']}")
 
     def init_plugin(self, args):
         # Регистрируем панель
@@ -51,7 +51,7 @@ class RvLive():
         self._rhapi.server.enable_heartbeat_event()
         
         # Регистрируем обработчик сердцебиения
-        self._rhapi.events.on(Evt.HEARTBEAT, self.check_confirmation_timeout, priority=200)
+      #   self._rhapi.events.on(Evt.HEARTBEAT, self.check_confirmation_timeout, priority=200)
         
         # Регистрируем обработчики для события очистки
         self._rhapi.events.on(Evt.DATABASE_RESET, self.on_database_reset)
@@ -63,8 +63,8 @@ class RvLive():
         
         # Инициализируем UI
         self.update_ui()
-        self.logger.info("RV Live plugin loaded")
-        self.logger.info("Heartbeat event enabled")
+      #   self.logger.info("RV Live plugin loaded")
+      #   self.logger.info("Heartbeat event enabled")
 
     def update_ui(self):
         # Обновляем Markdown с ключами
@@ -80,7 +80,6 @@ class RvLive():
         
         # Обновляем UI
         self._rhapi.ui.broadcast_ui("format")
-        self.logger.debug(f"UI updated: button_state={self.button_state}, button_label={self.button_label}")
 
     def update_key_display(self):
         # Форматируем ключи для Markdown
@@ -90,14 +89,14 @@ class RvLive():
         elif self.button_state == "clear":
             markdown_str = f"**Event URL:**\n`https://rh-results-viewer.vercel.app/?uuid={uuid}`"
         elif self.button_state == "confirm":
-            markdown_str = "Finish event?"
+            markdown_str = "Are you sure you want to FINISH your event?<br>This action cannot be undone and you will no longer be able to update it at this URL.<br>If you sure, press CONFIRM"
            
         # Создаем Markdown-блоки для отображения ключей
         self._rhapi.ui.register_markdown(self.panel_name, "Url_display", markdown_str)
-        self.logger.debug("Key display updated")
+      #   self.logger.debug("Key display updated")
 
     def main_button_handler(self, args):
-        self.logger.debug(f"Button pressed in state: {self.button_state}")
+      #   self.logger.debug(f"Button pressed in state: {self.button_state}")
         if self.button_state == "generate":
             self.generate_keys()
         elif self.button_state == "clear":
@@ -107,7 +106,7 @@ class RvLive():
             gevent.spawn(self.send_data_to_api)
 
     def generate_keys(self):
-        self.logger.info("Generating new keys")
+      #   self.logger.info("Generating new keys")
         # Генерация ключей
         self.keys["uuid"] = str(base64.urlsafe_b64encode(uuid.uuid4().bytes).rstrip(b'=').decode('ascii'))
         self.keys["key"] = str(base64.urlsafe_b64encode(uuid.uuid4().bytes).rstrip(b'=').decode('ascii'))
@@ -129,20 +128,14 @@ class RvLive():
         # Уведомление пользователя
         event_name = self._rhapi.db.option("eventName") or "Unnamed Event"
         self._rhapi.ui.message_notify(f"RV Live: '{event_name}' now in LIVE")
-        self.logger.info("Generated new key pair")
-        self.logger.debug(f"Saved keys: uuid={self.keys['uuid']}, key={self.keys['key']}")
+        self.logger.info("Generated new Event")
 
     def on_database_reset(self, args):
-        self.logger.info("DATABASE_RESET triggered — isFinished = true")
+      #   self.logger.info("DATABASE_RESET triggered")
         self._rhapi.config.set('RvLive', 'isFinished', True)
-      #   self.clear_keys();
 
     def on_results_update(self, args):
         """Обработчик событий, которые могут обновлять результаты"""
-      #   
-      #      self.logger.info("Skipping results update due to recent DATABASE_RESET")
-      #      self._isFinished = False
-      #      return  # Пропустить это обновление
         
         if self.keys["uuid"] != "not_generated":
             self.logger.info("Results potentially updated, sending data to API")
@@ -173,9 +166,7 @@ class RvLive():
                   "key": self.keys["key"],
                   "isFinished": True,
 					}
-               
-            self.logger.info(f"Sending data to API")
-            self.logger.debug(f"Payload: {json.dumps(payload, indent=2)}")
+            # self.logger.debug(f"Payload: {json.dumps(payload, indent=2)}")
             
             # Отправляем POST-запрос с правильными заголовками
             response = requests.post(
@@ -187,9 +178,10 @@ class RvLive():
             if self._rhapi.config.get('RvLive', 'isFinished')==True:
                self.clear_keys();
             # Подробное логирование ответа
-            self.logger.debug(f"API response: status={response.status_code}, text={response.text}")
+            # self.logger.debug(f"API response: status={response.status_code}, text={response.text}")
             
             # Обрабатываем ответ и показываем уведомление пользователю
+            # self.logger.info(f"Response from API: {response.text}")
             self.UI_Message(self._rhapi, response.text)
             
                 
@@ -248,18 +240,10 @@ class RvLive():
         self.logger.info("Prompting for clear confirmation")
         # Обновляем состояние кнопки
         self.button_state = "confirm"
-        self.button_label = "⚠️ CONFIRM FINISH ⚠️"
+        self.button_label = "!!! CONFIRM FINISH !!!"
         self.confirmation_start_time = time.time()
         self.update_ui()
-        
-        # Сообщение пользователю
-        self._rhapi.ui.message_alert(
-            "RV LIVE:<br>"
-            "Are you sure you want to FINISH your event?<br><br>"
-            "This action cannot be undone and you will no longer be able to update it at this URL.<br><br>"
-            "If you sure, press CONFIRM"
-        )
-        self.logger.debug("Clear confirmation prompt displayed")
+        self._rhapi.events.on(Evt.HEARTBEAT, self.check_confirmation_timeout, priority=200)
 
     def check_confirmation_timeout(self, args):
         """Проверяем, не истекло ли время подтверждения"""
@@ -273,6 +257,7 @@ class RvLive():
                 self.button_label = "Finish Event"
                 self.confirmation_start_time = None
                 self.update_ui()
+                self._rhapi.events.off(Evt.HEARTBEAT, self.check_confirmation_timeout)
                 
                 self._rhapi.ui.message_notify("RV Live: Finish canceled")
                 self.logger.info("Confirmation state reset automatically")
@@ -281,7 +266,6 @@ class RvLive():
             self.logger.debug("Heartbeat event received (no confirmation pending)")
 
     def clear_keys(self):
-        self.logger.info("Clearing keys")
         # Очистка ключей
         self.keys = {
             "uuid": "not_generated",
@@ -302,3 +286,4 @@ class RvLive():
         # Уведомление пользователя
         self._rhapi.ui.message_notify("RV Live: event is FINISHED. Please, generate NEW!")
         self.logger.info("Event cleared")
+        self._rhapi.events.off(Evt.HEARTBEAT, self.check_confirmation_timeout)
