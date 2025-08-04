@@ -214,7 +214,7 @@ class RvLive():
 									 "RV LIVE:<br>"
                             f"Too long without updates({response.get('time')} hours)<br><br>"
                             "Your event on: <br>"
-                            f"https://rh-results-viewer.vercel.app/?uuid={self.keys["uuid"]}<br>"
+                            f"https://rh-results-viewer.vercel.app/?uuid={self.keys['uuid']}<br>"
                             "is FINISHED!<br><br>"
                             "Please, generate NEW"
                         )
