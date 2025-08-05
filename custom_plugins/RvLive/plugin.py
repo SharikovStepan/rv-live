@@ -243,7 +243,7 @@ class RvLive():
         self.button_label = "!!! CONFIRM FINISH !!!"
         self.confirmation_start_time = time.time()
         self.update_ui()
-        self._rhapi.events.on(Evt.HEARTBEAT, self.check_confirmation_timeout, priority=200)
+        self._rhapi.events.on(Evt.HEARTBEAT, self.check_confirmation_timeout, priority=200, name='clearConfirm')
 
     def check_confirmation_timeout(self, args):
         """Проверяем, не истекло ли время подтверждения"""
@@ -257,7 +257,7 @@ class RvLive():
                 self.button_label = "Finish Event"
                 self.confirmation_start_time = None
                 self.update_ui()
-                self._rhapi.events.off(Evt.HEARTBEAT, self.check_confirmation_timeout)
+                self._rhapi.events.off(Evt.HEARTBEAT, 'clearConfirm')
                 
                 self._rhapi.ui.message_notify("RV Live: Finish canceled")
                 self.logger.info("Confirmation state reset automatically")
@@ -286,4 +286,4 @@ class RvLive():
         # Уведомление пользователя
         self._rhapi.ui.message_notify("RV Live: event is FINISHED. Please, generate NEW!")
         self.logger.info("Event cleared")
-        self._rhapi.events.off(Evt.HEARTBEAT, self.check_confirmation_timeout)
+        self._rhapi.events.off(Evt.HEARTBEAT, 'clearConfirm')
