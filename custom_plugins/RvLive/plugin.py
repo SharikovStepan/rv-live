@@ -249,7 +249,7 @@ class RvLive():
         """Проверяем, не истекло ли время подтверждения"""
         if self.button_state == "confirm" and self.confirmation_start_time:
             elapsed = time.time() - self.confirmation_start_time
-            self.logger.debug(f"Checking confirmation timeout: {elapsed:.1f}/{self.confirmation_timeout}s")
+            # self.logger.debug(f"Checking confirmation timeout: {elapsed:.1f}/{self.confirmation_timeout}s")
             
             if elapsed > self.confirmation_timeout:
                 self.logger.info("Confirmation timeout expired")
