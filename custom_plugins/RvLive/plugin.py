@@ -3,6 +3,9 @@ import uuid
 import base64
 import time
 import json
+from sqlalchemy.ext.declarative import DeclarativeMeta
+from sqlalchemy import inspect
+
 
 import requests
 import gevent
@@ -10,7 +13,29 @@ import gevent
 from eventmanager import Evt
 from RHUI import UIField, UIFieldType, UIFieldSelectOption
 
+finalTypes_data = [
+  { "name": "No(quals)", "value": "" },
+  { "name": "Single Ellimination 8 pilots", "value": "single8" },
+  { "name": "Single Ellimination 16 pilots", "value": "single16" },
+  { "name": "Double Ellimination 16 pilots", "value": "double16" },
+  { "name": "Double Ellimination 32 pilots", "value": "double32" },
+  { "name": "FGDR Ellimination 8 pilots", "value": "fgdrSingle8" },
+  { "name": "FGDR Ellimination 16 pilots", "value": "fgdrSingle16" }
+]
+
+
 class RvLive():
+   #  with open('static/assets/data/finalTypes.json', 'r') as file:
+   #      finalTypes_data = json.load(file)
+    finalTypes = []
+   
+    for type in finalTypes_data:
+        code = type['value']
+        name = type["name"]
+        option = UIFieldSelectOption(code, name)
+        finalTypes.append(option)
+    finalTypes_ui_fields = UIField('finalType', "Tournament type", UIFieldType.SELECT, options=finalTypes, value="")
+    
     def __init__(self, rhapi):
         self.logger = logging.getLogger(__name__)
         self._rhapi = rhapi
@@ -61,6 +86,10 @@ class RvLive():
       #   self._rhapi.events.on(Evt.LAPS_SAVE, self.on_results_update)
       #   self._rhapi.events.on(Evt.RACE_FINISH, self.on_results_update)
         
+        # Поле выбора турниртной таблицы
+      #   finalType_ui_field = UIField('country', "Country Code", UIFieldType.SELECT, options=['yes','no'], value="")
+        fields = self._rhapi.fields
+        fields.register_raceclass_attribute(self.finalTypes_ui_fields)
         # Инициализируем UI
         self.update_ui()
       #   self.logger.info("RV Live plugin loaded")
@@ -149,12 +178,33 @@ class RvLive():
                 event_results = self._rhapi.eventresults.results   
                 # Получаем название события
                 event_name = self._rhapi.db.option("eventName") or "No titled"
+                # Обрабатываем ответ и показываем уведомление пользователю
+                # self.logger.info(f"Response from API: {response.text}")
+                raceClasses = self._rhapi.db.raceclasses
+                finalTypes = []
+                heatsByFinalClass = []
+                
+                for raceClass in raceClasses:
+                    currentType = self._rhapi.db.raceclass_attribute_value(raceClass.id,"finalType")
+                    finalType = {'raceClassId':raceClass.id,'finalType':currentType}
+                    finalTypes.append(finalType)
+                    if currentType != '':
+                       heats = self._rhapi.db.heat_by_id(4)
+                       heatsJson = json.dumps(heats, indent=4, cls=AlchemyEncoder)
+                       self.logger.info(heatsJson)
+                       heats1 = self._rhapi.db.heat_by_id(5)
+                       heatsJson1 = json.dumps(heats1, indent=4, cls=AlchemyEncoder)
+                       self.logger.info(heatsJson1)
+
+                       
                 # Формируем данные для отправки в правильной структуре
                 payload = {
                     "uuid": self.keys["uuid"],
                     "key": self.keys["key"],
-                    "isFinished": False,
+                    "isFinished": False, 
                     "data": {
+                        "finalTypesByClass":finalTypes,
+                        # "heatsByFinalClass":heatsByFinalClass,
                         "lastUpdate":int(time.time() * 1000),
                         "eventName": event_name,
                         "results": event_results
@@ -180,8 +230,6 @@ class RvLive():
             # Подробное логирование ответа
             # self.logger.debug(f"API response: status={response.status_code}, text={response.text}")
             
-            # Обрабатываем ответ и показываем уведомление пользователю
-            # self.logger.info(f"Response from API: {response.text}")
             self.UI_Message(self._rhapi, response.text)
             
                 
@@ -287,3 +335,31 @@ class RvLive():
         self._rhapi.ui.message_notify("RV Live: event is FINISHED. Please, generate NEW!")
         self.logger.info("Event cleared")
         self._rhapi.events.off(Evt.HEARTBEAT, 'clearConfirm')
+        
+        
+class AlchemyEncoder(json.JSONEncoder):
+    def default(self, obj):  #pylint: disable=arguments-differ
+        if isinstance(obj.__class__, DeclarativeMeta):
+            # an SQLAlchemy class
+            mapped_instance = inspect(obj)
+            fields = {}
+            for field in dir(obj): 
+                if field in [*mapped_instance.attrs.keys()]:
+                    data = obj.__getattribute__(field)
+                    if field != 'query' \
+                        and field != 'query_class':
+                        try:
+                            json.dumps(data) # this will fail on non-encodable values, like other classes
+                            if field == 'frequencies':
+                                fields[field] = json.loads(data)
+                            elif field == 'enter_ats' or field == 'exit_ats':
+                                fields[field] = json.loads(data)
+                            else:
+                                fields[field] = data
+                        except TypeError:
+                            fields[field] = None
+
+            # a json-encodable dict
+            return fields
+
+        return json.JSONEncoder.default(self, obj)
