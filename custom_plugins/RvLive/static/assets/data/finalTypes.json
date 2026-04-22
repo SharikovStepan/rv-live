@@ -1,0 +1,8 @@
+[
+  { "name": "Single Ellimination 8 pilots", "value": "single8" },
+  { "name": "Single Ellimination 16 pilots", "value": "single16" },
+  { "name": "Double Ellimination 16 pilots", "value": "double16" },
+  { "name": "Double Ellimination 8 pilots", "value": "double32" },
+  { "name": "FGDR Ellimination 8 pilots", "value": "fgdrSingle8" },
+  { "name": "FGDR Ellimination 16 pilots", "value": "fgdrSingle16" }
+]
